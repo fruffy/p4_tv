@@ -20,19 +20,6 @@ def resolve_index(ctx, lval):
     return lval, False
 
 
-def save_variables(ctx, merged_args):
-    var_buffer = OrderedDict()
-    # save all the variables that may be overridden
-    for param_name, arg in merged_args.items():
-        try:
-            param_val = ctx.resolve_reference(param_name)
-            var_buffer[param_name] = (arg.mode, arg.p4_val, param_val)
-        except RuntimeError:
-            # if the variable name does not exist, set the value to None
-            var_buffer[param_name] = (arg.mode, arg.p4_val, None)
-    return var_buffer
-
-
 def merge_parameters(params, *args, **kwargs):
     # FIXME: This function could be a lot more efficient...
     # FIXME: Overloading does not work correctly here
@@ -65,7 +52,6 @@ def merge_parameters(params, *args, **kwargs):
 
 
 class MethodCallExpr(P4Expression):
-
     def __init__(self, p4_method, type_args, *args, **kwargs):
         self.p4_method = p4_method
         self.args = args
@@ -164,7 +150,8 @@ class P4Callable(P4Z3Class):
                 arg_expr = z3_cast(arg_expr, p4_type)
             # need to work with an independent copy
             # the purpose is to handle indirect assignments in an action
-            if arg.mode in ("in", "inout") and isinstance(arg_expr, StructInstance):
+            if arg.mode in ("in", "inout") and isinstance(
+                    arg_expr, StructInstance):
                 arg_expr = copy.copy(arg_expr)
             if arg.mode == "out":
                 # outs are left-values so the arg must be a string
@@ -185,7 +172,6 @@ class P4Callable(P4Z3Class):
 
 
 class ConstCallExpr(P4Expression):
-
     def __init__(self, p4_method, *args, **kwargs):
         self.p4_method = p4_method
         self.args = args
@@ -197,7 +183,6 @@ class ConstCallExpr(P4Expression):
 
 
 class P4Action(P4Callable):
-
     def eval_callable(self, ctx, merged_args, var_buffer):
         # actions can modify global variables so do not save the p4 state
         # the only variables that do need to be restored are copy-ins/outs
@@ -206,8 +191,8 @@ class P4Action(P4Callable):
     def __call__(self, ctx, *args, **kwargs):
         return self.eval(ctx, *args, **kwargs)
 
-class P4Function(P4Action):
 
+class P4Function(P4Action):
     def __init__(self, name, params, return_type, body):
         super(P4Function, self).__init__(name, params, body)
         self.return_type = return_type
@@ -232,9 +217,10 @@ class P4Function(P4Action):
                     return_expr = z3.If(then_cond, then_expr, return_expr)
         return return_expr
 
-class P4Control(P4Callable):
 
-    def __init__(self, name, type_params, params, const_params, body, local_decls):
+class P4Control(P4Callable):
+    def __init__(self, name, type_params, params, const_params, body,
+                 local_decls):
         super(P4Control, self).__init__(name, params, body)
         self.local_decls = local_decls
         self.type_params = type_params
@@ -270,8 +256,8 @@ class P4Control(P4Callable):
 
     def initialize(self, ctx, *args, **kwargs):
         ctrl_copy = copy.copy(self)
-        ctrl_copy.merged_consts = merge_parameters(
-            ctrl_copy.const_params, *args, **kwargs)
+        ctrl_copy.merged_consts = merge_parameters(ctrl_copy.const_params,
+                                                   *args, **kwargs)
         # also bind types, because for reasons you can bind types everywhere...
         for idx, const_param in enumerate(ctrl_copy.const_params):
             # this means the type is generic
@@ -290,7 +276,15 @@ class P4Control(P4Callable):
     def eval_callable(self, ctx, merged_args, var_buffer):
         # initialize the local ctx of the function for execution
 
-        merged_vars = save_variables(ctx, self.merged_consts)
+        merged_vars = OrderedDict()
+        # save all the variables that may be overridden
+        for param_name, arg in self.merged_consts.items():
+            try:
+                param_val = ctx.resolve_reference(param_name)
+                merged_vars[param_name] = (arg.mode, arg.p4_val, param_val)
+            except RuntimeError:
+                # if the variable name does not exist, set the value to None
+                merged_vars[param_name] = (arg.mode, arg.p4_val, None)
         ctx.prepend_to_buffer(merged_vars)
 
         for const_param_name, const_arg in self.merged_consts.items():
@@ -320,7 +314,6 @@ class P4Control(P4Callable):
 
 
 class P4Method(P4Callable):
-
     def __init__(self, name, type_params, params):
         super(P4Method, self).__init__(name, params)
         # P4Methods, which are also black-box functions, can have return types
@@ -377,8 +370,7 @@ class P4Method(P4Callable):
             # we need to resolve "in" too because of side-effects
             p4_val, _ = resolve_index(ctx, arg.p4_val)
             arg_expr = sub_ctx.resolve_expr(p4_val)
-            method_args[param_name] = (
-                arg.mode, p4_val, arg_expr, arg.p4_type)
+            method_args[param_name] = (arg.mode, p4_val, arg_expr, arg.p4_type)
         for type_name, p4_type in self.type_ctx.items():
             sub_ctx.add_type(type_name, sub_ctx.resolve_type(p4_type))
 
@@ -449,13 +441,11 @@ def resolve_action(action_expr):
         action_name = action_expr
         action_args = []
     else:
-        raise TypeError(
-            f"Expected a method call, got {type(action_name)}!")
+        raise TypeError(f"Expected a method call, got {type(action_name)}!")
     return action_name, action_args
 
 
 class P4Table(P4Callable):
-
     def __init__(self, name, **properties):
         super(P4Table, self).__init__(name, params={})
         self.keys = []
@@ -536,10 +526,10 @@ class P4Table(P4Callable):
                 # If the shift exceeds the bit width, everything will be zero
                 # but that does not matter
                 # TODO: Test this?
-                mask_var = z3.BitVec(
-                    f"{self.name}_table_mask_{index}", key_sort)
-                lpm_mask = z3.BitVecVal(
-                    2**key_sort.size() - 1, key_sort) << mask_var
+                mask_var = z3.BitVec(f"{self.name}_table_mask_{index}",
+                                     key_sort)
+                lpm_mask = z3.BitVecVal(2**key_sort.size() - 1,
+                                        key_sort) << mask_var
                 match = (key_eval & lpm_mask) == (key_match & lpm_mask)
                 key_pairs.append(match)
             elif key_type == "ternary":
@@ -617,8 +607,7 @@ class P4Table(P4Callable):
             if isinstance(c_key_expr, P4Range):
                 x = ctx.resolve_expr(c_key_expr.min)
                 y = ctx.resolve_expr(c_key_expr.max)
-                c_key_eval = z3.And(z3.ULE(x, key_eval),
-                                    z3.UGE(y, key_eval))
+                c_key_eval = z3.And(z3.ULE(x, key_eval), z3.UGE(y, key_eval))
                 matches.append(c_key_eval)
             elif isinstance(c_key_expr, P4Mask):
                 # TODO: Unclear about the role of side-effects here

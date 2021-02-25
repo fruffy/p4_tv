@@ -19,3 +19,6 @@
 [submodule "modules/pruner"]
     url = https://github.com/p4gauntlet/pruner
     path = modules/pruner
+[submodule "modules/toz3_v2"]
+    url = https://github.com/p4gauntlet/toz3_v2
+    path = modules/toz3_v2
