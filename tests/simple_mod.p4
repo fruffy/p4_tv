@@ -21,22 +21,16 @@ parser p(packet_in pkt, out Headers hdr) {
 }
 
 bit<32> simple_fun(inout bit<32> val) {
-    if (32w1 == val) {
+    if (val == 32w1) {
         val = 2;
-        return 32w5;
+        return 21;
     } else {
-        val = 3 + 2 - 10;
+        val = 3;
     }
     return 32w2;
 }
 
 control ingress(inout Headers h) {
-
-    action simple_action(inout H tmp) {
-        h.h.b = 231232;
-        tmp.b = 2;
-        h.h.b = 231232;
-    }
 
     apply {
         h.h.b = simple_fun(h.h.a);
